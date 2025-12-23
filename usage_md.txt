@@ -1,0 +1,606 @@
+# Detailed Usage Guide
+
+## Table of Contents
+1. [Installation](#installation)
+2. [Basic Usage](#basic-usage)
+3. [Advanced Configuration](#advanced-configuration)
+4. [Using Your Own Data](#using-your-own-data)
+5. [Understanding Outputs](#understanding-outputs)
+6. [Model Deployment](#model-deployment)
+7. [Best Practices](#best-practices)
+8. [Troubleshooting](#troubleshooting)
+
+## Installation
+
+### Step 1: System Requirements
+
+**Minimum Requirements**:
+- Python 3.8+
+- 16GB RAM
+- 10GB free disk space
+- CPU: Multi-core (4+ cores recommended)
+
+**Recommended Requirements**:
+- Python 3.10
+- 32GB RAM
+- 20GB free disk space
+- GPU: NVIDIA with CUDA support (optional but faster)
+
+### Step 2: Environment Setup
+
+**Option A: Virtual Environment (Recommended)**
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate (Linux/Mac)
+source venv/bin/activate
+
+# Activate (Windows)
+venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+**Option B: Conda Environment**
+```bash
+# Create conda environment
+conda create -n banking-rec python=3.10
+
+# Activate
+conda activate banking-rec
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Step 3: Verify Installation
+
+```bash
+# Test imports
+python -c "import tensorflow as tf; import pandas as pd; import shap; print('✓ All imports successful')"
+
+# Check TensorFlow version
+python -c "import tensorflow as tf; print(f'TensorFlow: {tf.__version__}')"
+
+# Check GPU availability (optional)
+python -c "import tensorflow as tf; print(f'GPU Available: {len(tf.config.list_physical_devices(\"GPU\")) > 0}')"
+```
+
+## Basic Usage
+
+### Run Complete Pipeline
+
+```bash
+python main.py
+```
+
+This executes the full end-to-end pipeline:
+
+1. ✅ **Data Generation**: Creates 355K synthetic customer records
+2. ✅ **Deposit Model**: Trains model for 5 deposit products
+3. ✅ **Loan Model**: Trains model for 10 loan products with SMOTE
+4. ✅ **Hyperparameter Tuning**: Optimizes model parameters (optional)
+5. ✅ **Evaluation**: Computes comprehensive metrics
+6. ✅ **Recommendations**: Generates top-N products per customer
+7. ✅ **Explainability**: Creates SHAP plots
+
+### Monitor Progress
+
+Watch the console output for real-time progress:
+
+```
+2024-12-22 10:00:00 | INFO     | ================================================================================
+2024-12-22 10:00:00 | INFO     | HYBRID WIDE & DEEP PRODUCT RECOMMENDATION SYSTEM
+2024-12-22 10:00:00 | INFO     | ================================================================================
+2024-12-22 10:00:05 | INFO     | STEP 1: DATA GENERATION
+2024-12-22 10:00:05 | INFO     | Generating 355,000 customer records...
+2024-12-22 10:02:15 | INFO     | Data generation complete: (355000, 94)
+...
+```
+
+Check logs for detailed information:
+```bash
+tail -f logs/pipeline_2024-12-22.log
+```
+
+## Advanced Configuration
+
+### Customize Training Strategy
+
+**Scenario 1: Faster Training (Development)**
+```yaml
+# config.yaml
+data:
+  total_customers: 50000  # Reduced dataset
+
+training:
+  deposit:
+    epochs: 20  # Fewer epochs
+  loan:
+    epochs: 25
+
+hyperparameter_tuning:
+  enabled: false  # Skip tuning
+```
+
+**Scenario 2: Maximum Accuracy (Production)**
+```yaml
+training:
+  deposit:
+    epochs: 100
+    batch_size: 128  # Smaller batches
+  loan:
+    epochs: 150
+    batch_size: 64
+
+hyperparameter_tuning:
+  enabled: true
+  n_trials: 24  # More trials
+```
+
+**Scenario 3: Severe Imbalance Handling**
+```yaml
+training:
+  loan:
+    strategy: smoteenn  # More aggressive
+    positive_class_weight: 15.0  # Higher weight
+    smote_sampling_ratio: 0.7  # More synthetic samples
+```
+
+### Modify Model Architecture
+
+**Larger Model (More Capacity)**:
+```yaml
+model:
+  wide_dim: 128
+  deep_dims: [512, 256, 128, 64]
+  dropout_rate: 0.5
+```
+
+**Smaller Model (Faster Training)**:
+```yaml
+model:
+  wide_dim: 32
+  deep_dims: [128, 64]
+  dropout_rate: 0.3
+```
+
+### Adjust Hyperparameter Search Space
+
+```yaml
+hyperparameter_tuning:
+  param_grid:
+    wide_dim: [32, 64, 128, 256]
+    deep_dims:
+      - [64, 32]
+      - [128, 64, 32]
+      - [256, 128, 64]
+      - [512, 256, 128, 64]
+    dropout_rate: [0.2, 0.3, 0.4, 0.5]
+    learning_rate: [0.0001, 0.0005, 0.001, 0.002]
+```
+
+## Using Your Own Data
+
+### Data Requirements
+
+Your CSV must have:
+1. **Customer ID**: Unique identifier
+2. **Features** (80+): Mix of categorical and numerical
+3. **Product Columns**: Binary (0/1) for each product
+
+### Data Format Example
+
+```csv
+customer_id,customer_segment,industry,annual_revenue,employee_count,...,Checking,Savings,MMA,CD_1Year,CD_GT1Year,Term_Loan,Line_of_Credit,...
+1,SME,Technology,5000000,150,...,1,1,0,0,0,0,1,...
+2,Corporate,Manufacturing,50000000,800,...,1,0,1,1,0,1,1,...
+```
+
+### Load Your Data
+
+**Method 1: Modify main.py**
+```python
+# main.py
+def main():
+    setup_logging()
+    pipeline = HybridRecommendationPipeline(config_path="config.yaml")
+    
+    # Use your data instead of generating
+    results = pipeline.run(
+        data_path="path/to/your/data.csv",
+        generate_data=False
+    )
+    
+    return results
+```
+
+**Method 2: Use API**
+```python
+from src.pipeline import HybridRecommendationPipeline
+import pandas as pd
+
+# Load your data
+df = pd.read_csv("your_data.csv")
+
+# Initialize pipeline
+pipeline = HybridRecommendationPipeline("config.yaml")
+
+# Process your data through pipeline
+results = pipeline.run(data_path="your_data.csv", generate_data=False)
+```
+
+### Data Validation
+
+Before running, validate your data:
+
+```python
+from src.utils import validate_dataframe, check_null_values
+
+# Load data
+df = pd.read_csv("your_data.csv")
+
+# Required columns
+required_features = ['customer_id', 'customer_segment', 'industry', ...]
+required_products = ['Checking', 'Savings', ..., 'Term_Loan', ...]
+
+# Validate
+if validate_dataframe(df, required_features + required_products):
+    print("✓ Data validation passed")
+else:
+    print("✗ Missing required columns")
+
+# Check for nulls
+null_counts = check_null_values(df)
+if null_counts.sum() == 0:
+    print("✓ No null values")
+else:
+    print(f"⚠ Null values found:\n{null_counts[null_counts > 0]}")
+```
+
+## Understanding Outputs
+
+### 1. Model Files
+
+**`best_deposit_model.keras`**
+- Trained deposit model (5 products)
+- Load with: `keras.models.load_model('models/best_deposit_model.keras')`
+
+**`best_loan_model.keras`**
+- Trained loan model (10 products)
+- Optimized for imbalanced data
+
+**`*_preprocessor.pkl`**
+- Contains scalers and encoders
+- Required for new predictions
+- Load with: `joblib.load('models/deposit_preprocessor.pkl')`
+
+### 2. Evaluation Metrics
+
+**`deposit_metrics.csv`**
+```csv
+product,auc_roc,precision,recall,f1_score,specificity,support
+Checking,0.8752,0.9234,0.9456,0.9343,0.7234,8945
+Savings,0.7834,0.7123,0.7845,0.7467,0.8123,4234
+...
+```
+
+**Key Metrics**:
+- **AUC-ROC**: Overall discriminative ability (0.7+ is good)
+- **Precision**: Of predicted positives, % actually positive
+- **Recall**: Of actual positives, % correctly identified
+- **F1**: Harmonic mean of precision and recall
+- **Support**: Number of positive samples in test set
+
+### 3. Recommendations
+
+**`recommendations_all_products.csv`**
+```csv
+customer_id,rank,product,category,score,recommendation
+1,1,Line_of_Credit,Loan,0.8234,High
+1,2,Checking,Deposit,0.7856,High
+1,3,Business_Cards,Loan,0.6234,Medium
+...
+```
+
+**Interpretation**:
+- **Rank**: 1 = highest recommendation for this customer
+- **Score**: Probability (0-1)
+- **Recommendation**: High (>0.7), Medium (0.5-0.7), Low (<0.5)
+
+**`probability_matrix.csv`**
+- Contains probabilities for ALL products for ALL customers
+- Use for custom threshold analysis
+- Format: `customer_id, Product_1_prob, Product_2_prob, ..., Product_15_prob`
+
+### 4. Optimal Thresholds
+
+**`deposit_optimal_thresholds.json`**
+```json
+{
+  "Checking": 0.45,
+  "Savings": 0.55,
+  "MMA": 0.60,
+  "CD_1Year": 0.65,
+  "CD_GT1Year": 0.70
+}
+```
+
+**Usage**: Use these thresholds instead of default 0.5 for better F1 scores
+
+### 5. Explainability Plots
+
+**Global Importance**:
+- `deposit_Checking_global_importance.png`
+- Shows which features matter most overall
+- SHAP summary plot with feature values
+
+**Local Explanation**:
+- `deposit_Checking_customer_123_local.png`
+- Waterfall plot showing why customer 123 got this recommendation
+- Red bars = increases probability, Blue bars = decreases
+
+## Model Deployment
+
+### Inference Pipeline
+
+```python
+import pandas as pd
+import numpy as np
+from tensorflow import keras
+import joblib
+
+# Load models and preprocessors
+deposit_model = keras.models.load_model('models/best_deposit_model.keras')
+loan_model = keras.models.load_model('models/best_loan_model.keras')
+deposit_preprocessor = joblib.load('models/deposit_preprocessor.pkl')
+loan_preprocessor = joblib.load('models/loan_preprocessor.pkl')
+
+# Load optimal thresholds
+import json
+with open('results/deposit_optimal_thresholds.json') as f:
+    deposit_thresholds = json.load(f)
+
+# New customer data
+new_customer = pd.DataFrame([{
+    'customer_id': 999999,
+    'customer_segment': 'SME',
+    'industry': 'Technology',
+    'annual_revenue': 5000000,
+    # ... all other features
+}])
+
+# Preprocess
+X_deposit = deposit_preprocessor.encode_and_scale(new_customer, is_training=False)
+X_loan = loan_preprocessor.encode_and_scale(new_customer, is_training=False)
+
+# Predict
+deposit_probs = deposit_model.predict(X_deposit, verbose=0)[0]
+loan_probs = loan_model.predict(X_loan, verbose=0)[0]
+
+# Get top recommendations
+deposit_products = ['Checking', 'Savings', 'MMA', 'CD_1Year', 'CD_GT1Year']
+loan_products = ['Term_Loan', 'Letter_of_Credit', 'Line_of_Credit', ...]
+
+all_probs = {}
+for i, prod in enumerate(deposit_products):
+    all_probs[prod] = deposit_probs[i]
+for i, prod in enumerate(loan_products):
+    all_probs[prod] = loan_probs[i]
+
+# Sort and get top 5
+top_5 = sorted(all_probs.items(), key=lambda x: x[1], reverse=True)[:5]
+
+print(f"Top 5 recommendations for customer {new_customer['customer_id'].values[0]}:")
+for rank, (product, prob) in enumerate(top_5, 1):
+    print(f"{rank}. {product}: {prob:.2%}")
+```
+
+### Batch Processing
+
+```python
+# Process 10,000 customers
+large_batch = pd.read_csv('customers_to_score.csv')
+
+# Batch prediction
+X_deposit_batch = deposit_preprocessor.encode_and_scale(large_batch, is_training=False)
+X_loan_batch = loan_preprocessor.encode_and_scale(large_batch, is_training=False)
+
+deposit_probs_batch = deposit_model.predict(X_deposit_batch, batch_size=512)
+loan_probs_batch = loan_model.predict(X_loan_batch, batch_size=512)
+
+# Save to database or CSV
+results = pd.DataFrame({
+    'customer_id': large_batch['customer_id'],
+    'Checking_prob': deposit_probs_batch[:, 0],
+    'Savings_prob': deposit_probs_batch[:, 1],
+    # ... all products
+})
+
+results.to_csv('batch_predictions.csv', index=False)
+```
+
+### REST API Deployment
+
+```python
+from flask import Flask, request, jsonify
+import pandas as pd
+
+app = Flask(__name__)
+
+# Load models globally (once at startup)
+deposit_model = keras.models.load_model('models/best_deposit_model.keras')
+loan_model = keras.models.load_model('models/best_loan_model.keras')
+deposit_preprocessor = joblib.load('models/deposit_preprocessor.pkl')
+loan_preprocessor = joblib.load('models/loan_preprocessor.pkl')
+
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    # Get customer data from request
+    customer_data = request.json
+    
+    # Convert to DataFrame
+    df = pd.DataFrame([customer_data])
+    
+    # Preprocess and predict
+    X_deposit = deposit_preprocessor.encode_and_scale(df, is_training=False)
+    X_loan = loan_preprocessor.encode_and_scale(df, is_training=False)
+    
+    deposit_probs = deposit_model.predict(X_deposit, verbose=0)[0]
+    loan_probs = loan_model.predict(X_loan, verbose=0)[0]
+    
+    # Format response
+    recommendations = {
+        'customer_id': customer_data['customer_id'],
+        'top_products': [
+            {'product': 'Checking', 'probability': float(deposit_probs[0])},
+            {'product': 'Line_of_Credit', 'probability': float(loan_probs[2])},
+            # ... top 5
+        ]
+    }
+    
+    return jsonify(recommendations)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+## Best Practices
+
+### 1. Data Quality
+
+✅ **DO**:
+- Handle missing values before training
+- Validate data types match expectations
+- Remove duplicate customer IDs
+- Check for data leakage (future information)
+
+❌ **DON'T**:
+- Use features that won't be available at prediction time
+- Include target variable in features
+- Ignore outliers without investigation
+
+### 2. Model Training
+
+✅ **DO**:
+- Always use stratified splitting
+- Monitor validation metrics during training
+- Save best model based on validation AUC
+- Use early stopping to prevent overfitting
+
+❌ **DON'T**:
+- Train on imbalanced data without handling
+- Use test set for hyperparameter tuning
+- Ignore class distribution in splits
+
+### 3. Evaluation
+
+✅ **DO**:
+- Report multiple metrics (AUC, Precision, Recall, F1)
+- Analyze per-product performance
+- Check for bias across customer segments
+- Validate on holdout time period if available
+
+❌ **DON'T**:
+- Rely on accuracy alone (misleading with imbalance)
+- Ignore low-performing products
+- Skip error analysis
+
+### 4. Deployment
+
+✅ **DO**:
+- Version control models and preprocessors
+- Log all predictions for monitoring
+- Set up model performance monitoring
+- Implement fallback logic
+
+❌ **DON'T**:
+- Deploy without testing on recent data
+- Ignore model drift over time
+- Skip A/B testing
+
+## Troubleshooting
+
+### Issue: Out of Memory
+
+**Symptoms**: `MemoryError` or system freezing
+
+**Solutions**:
+```yaml
+# config.yaml
+data:
+  total_customers: 50000  # Reduce dataset size
+
+training:
+  deposit:
+    batch_size: 512  # Increase batch size
+  loan:
+    batch_size: 256
+```
+
+Or use gradient checkpointing:
+```python
+# In model_architecture.py
+tf.config.experimental.set_memory_growth(gpu, True)
+```
+
+### Issue: Training Too Slow
+
+**Solutions**:
+1. Disable hyperparameter tuning
+2. Reduce epochs
+3. Use GPU if available
+4. Increase batch size
+
+### Issue: Poor Loan Model Performance
+
+**Symptoms**: AUC < 0.65 for most loan products
+
+**Solutions**:
+```yaml
+training:
+  loan:
+    strategy: smoteenn  # More aggressive
+    positive_class_weight: 15.0
+    smote_sampling_ratio: 0.7
+    epochs: 100  # More training
+```
+
+### Issue: Model Not Improving
+
+**Check**:
+1. Learning rate (try 0.0001 or 0.0005)
+2. Model capacity (add more layers/neurons)
+3. Feature quality (correlation analysis)
+4. Data leakage (inspect features)
+
+### Issue: SHAP Calculation Fails
+
+**Solutions**:
+```yaml
+explainability:
+  shap_sample_size: 50  # Reduce sample size
+  background_sample_size: 25
+```
+
+Or skip SHAP for deployment:
+```python
+# Comment out explainability step in pipeline.py
+# self._generate_explanations(...)
+```
+
+## Additional Resources
+
+- **TensorFlow Documentation**: https://www.tensorflow.org/guide
+- **SHAP Documentation**: https://shap.readthedocs.io/
+- **Wide & Deep Paper**: https://arxiv.org/abs/1606.07792
+- **Imbalanced Learning**: https://imbalanced-learn.org/
+
+## Support
+
+For questions or issues:
+1. Check logs: `logs/pipeline_*.log`
+2. Review this guide
+3. Contact: [support email]
